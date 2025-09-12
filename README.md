@@ -84,7 +84,7 @@ mim install "mmdet3d>=1.1.0rc0"
    首先，确保tools目录是一个Python包：
    ```bash
    # 如果没有tools/__init__.py文件，创建一个空文件
-   New-Item -Path tools -Name __init__.py -ItemType File
+   New-Item -Path tools -Name __init__.py -ItemType File(在tools目录中新建一个__init__.py，里面什么内容都不要写)
    ```
 
 3. **运行官方数据预处理**
