@@ -51,7 +51,7 @@ E:\Conda\condabin\conda.bat activate base
 E:\Conda\condabin\conda.bat activate openmmlab
 
 # 导航到项目目录
-cd "D:\U盘备份\毕设\21网络1张金翔 毕业设计\基于RT-DETR的遥感卫星图像目标检测系统\mmdetection3d"
+cd "MMDetection3D"
 
 # 安装mmdet3d（解决matplotlib 3.5.3版本兼容性问题）
 mim install "mmdet3d>=1.1.0rc0"
