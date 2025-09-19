@@ -44,8 +44,9 @@ def multibin_loss(pred_orientations: Tensor,
         if valid_mask_i.sum() > 0:
             start = num_dir_bins * 2 + i * 2
             end = start + 2
+            # Ensure F.normalize output matches input dtype for AMP compatibility
             pred_offset = F.normalize(pred_orientations[valid_mask_i,
-                                                        start:end])
+                                                        start:end]).to(pred_orientations.dtype)
             gt_offset_sin = torch.sin(gt_orientations[valid_mask_i,
                                                       num_dir_bins + i])
             gt_offset_cos = torch.cos(gt_orientations[valid_mask_i,

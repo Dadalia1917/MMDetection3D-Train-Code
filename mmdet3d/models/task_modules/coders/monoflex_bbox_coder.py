@@ -451,7 +451,8 @@ class MonoFlexCoder(BaseBBoxCoder):
             head_cls = head_cls[:, 0] < head_cls[:, 1]
             # cls axis
             orientations = self.bin_centers[axis_cls + head_cls * 2]
-            sin_cos_offset = F.normalize(ori_vector[:, 4:])
+            # Ensure F.normalize output matches input dtype for AMP compatibility
+            sin_cos_offset = F.normalize(ori_vector[:, 4:]).to(ori_vector.dtype)
             orientations += sin_cos_offset[:, 0].atan(sin_cos_offset[:, 1])
 
         locations = locations.view(-1, 3)

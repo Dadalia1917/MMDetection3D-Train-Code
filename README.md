@@ -16,10 +16,10 @@ conda activate openmmlab
 #### 2. 安装PyTorch
 
 ```bash
-# 方法1：使用本地wheel文件（如果有的话）
+# 步骤1：使用本地wheel文件（如果有的话）
 pip install D:\download\torch-2.8.0+cu128-cp311-cp311-win_amd64.whl
 
-# 方法2：从官方源安装
+# 步骤2：从官方源安装
 pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 ```
 

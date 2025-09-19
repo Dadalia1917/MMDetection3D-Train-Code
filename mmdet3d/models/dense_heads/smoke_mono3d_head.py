@@ -117,7 +117,9 @@ class SMOKEMono3DHead(AnchorFreeMono3DHead):
         bbox_pred[:, self.dim_channel, ...] = offset_dims.sigmoid() - 0.5
         # (N, C, H, W)
         vector_ori = bbox_pred[:, self.ori_channel, ...]
-        bbox_pred[:, self.ori_channel, ...] = F.normalize(vector_ori)
+        # Ensure F.normalize output matches bbox_pred dtype for AMP compatibility
+        normalized_ori = F.normalize(vector_ori).to(bbox_pred.dtype)
+        bbox_pred[:, self.ori_channel, ...] = normalized_ori
         return cls_score, bbox_pred
 
     def predict_by_feat(self,
