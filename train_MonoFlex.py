@@ -13,6 +13,18 @@ from mmengine.runner import Runner
 from mmdet3d.utils import replace_ceph_backend
 
 
+def init_cuda_context():
+    """Initialize CUDA context to avoid numba CUDA JIT errors"""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.init()
+            _ = torch.zeros(1).cuda()
+            torch.cuda.synchronize()
+    except Exception:
+        pass
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Train MonoFlex mono3D detector')
     parser.add_argument(
@@ -146,6 +158,8 @@ def get_config_file(dataset):
 
 def main():
     args = parse_args()
+    
+    init_cuda_context()
 
     # load config
     if args.config:

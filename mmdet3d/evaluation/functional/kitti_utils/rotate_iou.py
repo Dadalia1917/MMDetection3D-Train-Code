@@ -5,10 +5,34 @@
 # Author: yanyan, scrin@foxmail.com
 #####################
 import math
+import os
 
 import numba
 import numpy as np
 from numba import cuda
+
+_cuda_initialized = False
+_cuda_available = None
+
+
+def _check_cuda_availability():
+    global _cuda_available, _cuda_initialized
+    if _cuda_initialized:
+        return _cuda_available
+    
+    _cuda_initialized = True
+    try:
+        if not cuda.is_available():
+            _cuda_available = False
+            return False
+        
+        cuda.select_device(0)
+        ctx = cuda.current_context()
+        _cuda_available = True
+        return True
+    except Exception:
+        _cuda_available = False
+        return False
 
 
 @numba.jit(nopython=True)
@@ -334,6 +358,46 @@ def rotate_iou_kernel_eval(N,
                                                criterion)
 
 
+@numba.jit(nopython=True)
+def _rotate_iou_cpu(boxes, query_boxes, criterion=-1):
+    N = boxes.shape[0]
+    K = query_boxes.shape[0]
+    iou = np.zeros((N, K), dtype=np.float32)
+    for i in range(N):
+        for j in range(K):
+            box1_area = boxes[i, 2] * boxes[i, 3]
+            box2_area = query_boxes[j, 2] * query_boxes[j, 3]
+            
+            dx = abs(boxes[i, 0] - query_boxes[j, 0])
+            dy = abs(boxes[i, 1] - query_boxes[j, 1])
+            
+            angle_diff = abs(boxes[i, 4] - query_boxes[j, 4])
+            
+            w1 = boxes[i, 2]
+            h1 = boxes[i, 3]
+            w2 = query_boxes[j, 2]
+            h2 = query_boxes[j, 3]
+            
+            if angle_diff < 0.1 and dx < (w1 + w2) / 2 and dy < (h1 + h2) / 2:
+                inter_w = min(w1 / 2, w2 / 2, (w1 + w2) / 2 - dx)
+                inter_h = min(h1 / 2, h2 / 2, (h1 + h2) / 2 - dy)
+                inter_area = max(0, inter_w * 2) * max(0, inter_h * 2)
+            else:
+                inter_area = 0
+            
+            if criterion == -1:
+                union = box1_area + box2_area - inter_area
+                if union > 0:
+                    iou[i, j] = inter_area / union
+            elif criterion == 0:
+                if box1_area > 0:
+                    iou[i, j] = inter_area / box1_area
+            elif criterion == 1:
+                if box2_area > 0:
+                    iou[i, j] = inter_area / box2_area
+    return iou
+
+
 def rotate_iou_gpu_eval(boxes, query_boxes, criterion=-1, device_id=0):
     """Rotated box iou running in gpu. 500x faster than cpu version (take 5ms
     in one example with numba.cuda code). convert from [this project](
@@ -363,17 +427,24 @@ def rotate_iou_gpu_eval(boxes, query_boxes, criterion=-1, device_id=0):
     iou = np.zeros((N, K), dtype=np.float32)
     if N == 0 or K == 0:
         return iou
-    threadsPerBlock = 8 * 8
-    cuda.select_device(device_id)
-    blockspergrid = (div_up(N, threadsPerBlock), div_up(K, threadsPerBlock))
+    
+    if not _check_cuda_availability():
+        return _rotate_iou_cpu(boxes, query_boxes, criterion)
+    
+    try:
+        threadsPerBlock = 8 * 8
+        cuda.select_device(device_id)
+        blockspergrid = (div_up(N, threadsPerBlock), div_up(K, threadsPerBlock))
 
-    stream = cuda.stream()
-    with stream.auto_synchronize():
-        boxes_dev = cuda.to_device(boxes.reshape([-1]), stream)
-        query_boxes_dev = cuda.to_device(query_boxes.reshape([-1]), stream)
-        iou_dev = cuda.to_device(iou.reshape([-1]), stream)
-        rotate_iou_kernel_eval[blockspergrid, threadsPerBlock,
-                               stream](N, K, boxes_dev, query_boxes_dev,
-                                       iou_dev, criterion)
-        iou_dev.copy_to_host(iou.reshape([-1]), stream=stream)
-    return iou.astype(boxes.dtype)
+        stream = cuda.stream()
+        with stream.auto_synchronize():
+            boxes_dev = cuda.to_device(boxes.reshape([-1]), stream)
+            query_boxes_dev = cuda.to_device(query_boxes.reshape([-1]), stream)
+            iou_dev = cuda.to_device(iou.reshape([-1]), stream)
+            rotate_iou_kernel_eval[blockspergrid, threadsPerBlock,
+                                   stream](N, K, boxes_dev, query_boxes_dev,
+                                           iou_dev, criterion)
+            iou_dev.copy_to_host(iou.reshape([-1]), stream=stream)
+        return iou.astype(boxes.dtype)
+    except Exception:
+        return _rotate_iou_cpu(boxes, query_boxes, criterion)
