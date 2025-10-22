@@ -301,61 +301,72 @@ def devRotateIoUEval(rbox1, rbox2, criterion=-1):
         return area_inter
 
 
-@cuda.jit(
-    '(int64, int64, float32[:], float32[:], float32[:], int32)',
-    fastmath=False)
-def rotate_iou_kernel_eval(N,
-                           K,
-                           dev_boxes,
-                           dev_query_boxes,
-                           dev_iou,
-                           criterion=-1):
-    """Kernel of computing rotated IoU. This function is for bev boxes in
-    camera coordinate system ONLY (the rotation is clockwise).
+_rotate_iou_kernel_eval = None
 
-    Args:
-        N (int): The number of boxes.
-        K (int): The number of query boxes.
-        dev_boxes (np.ndarray): Boxes on device.
-        dev_query_boxes (np.ndarray): Query boxes on device.
-        dev_iou (np.ndarray): Computed iou to return.
-        criterion (int, optional): Indicate different type of iou.
-            -1 indicate `area_inter / (area1 + area2 - area_inter)`,
-            0 indicate `area_inter / area1`,
-            1 indicate `area_inter / area2`.
-    """
-    threadsPerBlock = 8 * 8
-    row_start = cuda.blockIdx.x
-    col_start = cuda.blockIdx.y
-    tx = cuda.threadIdx.x
-    row_size = min(N - row_start * threadsPerBlock, threadsPerBlock)
-    col_size = min(K - col_start * threadsPerBlock, threadsPerBlock)
-    block_boxes = cuda.shared.array(shape=(64 * 5, ), dtype=numba.float32)
-    block_qboxes = cuda.shared.array(shape=(64 * 5, ), dtype=numba.float32)
 
-    dev_query_box_idx = threadsPerBlock * col_start + tx
-    dev_box_idx = threadsPerBlock * row_start + tx
-    if (tx < col_size):
-        block_qboxes[tx * 5 + 0] = dev_query_boxes[dev_query_box_idx * 5 + 0]
-        block_qboxes[tx * 5 + 1] = dev_query_boxes[dev_query_box_idx * 5 + 1]
-        block_qboxes[tx * 5 + 2] = dev_query_boxes[dev_query_box_idx * 5 + 2]
-        block_qboxes[tx * 5 + 3] = dev_query_boxes[dev_query_box_idx * 5 + 3]
-        block_qboxes[tx * 5 + 4] = dev_query_boxes[dev_query_box_idx * 5 + 4]
-    if (tx < row_size):
-        block_boxes[tx * 5 + 0] = dev_boxes[dev_box_idx * 5 + 0]
-        block_boxes[tx * 5 + 1] = dev_boxes[dev_box_idx * 5 + 1]
-        block_boxes[tx * 5 + 2] = dev_boxes[dev_box_idx * 5 + 2]
-        block_boxes[tx * 5 + 3] = dev_boxes[dev_box_idx * 5 + 3]
-        block_boxes[tx * 5 + 4] = dev_boxes[dev_box_idx * 5 + 4]
-    cuda.syncthreads()
-    if tx < row_size:
-        for i in range(col_size):
-            offset = (
-                row_start * threadsPerBlock * K + col_start * threadsPerBlock +
-                tx * K + i)
-            dev_iou[offset] = devRotateIoUEval(block_qboxes[i * 5:i * 5 + 5],
-                                               block_boxes[tx * 5:tx * 5 + 5],
-                                               criterion)
+def _get_rotate_iou_kernel():
+    global _rotate_iou_kernel_eval
+    if _rotate_iou_kernel_eval is not None:
+        return _rotate_iou_kernel_eval
+    
+    @cuda.jit(
+        '(int64, int64, float32[:], float32[:], float32[:], int32)',
+        fastmath=False)
+    def rotate_iou_kernel_eval(N,
+                               K,
+                               dev_boxes,
+                               dev_query_boxes,
+                               dev_iou,
+                               criterion=-1):
+        """Kernel of computing rotated IoU. This function is for bev boxes in
+        camera coordinate system ONLY (the rotation is clockwise).
+
+        Args:
+            N (int): The number of boxes.
+            K (int): The number of query boxes.
+            dev_boxes (np.ndarray): Boxes on device.
+            dev_query_boxes (np.ndarray): Query boxes on device.
+            dev_iou (np.ndarray): Computed iou to return.
+            criterion (int, optional): Indicate different type of iou.
+                -1 indicate `area_inter / (area1 + area2 - area_inter)`,
+                0 indicate `area_inter / area1`,
+                1 indicate `area_inter / area2`.
+        """
+        threadsPerBlock = 8 * 8
+        row_start = cuda.blockIdx.x
+        col_start = cuda.blockIdx.y
+        tx = cuda.threadIdx.x
+        row_size = min(N - row_start * threadsPerBlock, threadsPerBlock)
+        col_size = min(K - col_start * threadsPerBlock, threadsPerBlock)
+        block_boxes = cuda.shared.array(shape=(64 * 5, ), dtype=numba.float32)
+        block_qboxes = cuda.shared.array(shape=(64 * 5, ), dtype=numba.float32)
+
+        dev_query_box_idx = threadsPerBlock * col_start + tx
+        dev_box_idx = threadsPerBlock * row_start + tx
+        if (tx < col_size):
+            block_qboxes[tx * 5 + 0] = dev_query_boxes[dev_query_box_idx * 5 + 0]
+            block_qboxes[tx * 5 + 1] = dev_query_boxes[dev_query_box_idx * 5 + 1]
+            block_qboxes[tx * 5 + 2] = dev_query_boxes[dev_query_box_idx * 5 + 2]
+            block_qboxes[tx * 5 + 3] = dev_query_boxes[dev_query_box_idx * 5 + 3]
+            block_qboxes[tx * 5 + 4] = dev_query_boxes[dev_query_box_idx * 5 + 4]
+        if (tx < row_size):
+            block_boxes[tx * 5 + 0] = dev_boxes[dev_box_idx * 5 + 0]
+            block_boxes[tx * 5 + 1] = dev_boxes[dev_box_idx * 5 + 1]
+            block_boxes[tx * 5 + 2] = dev_boxes[dev_box_idx * 5 + 2]
+            block_boxes[tx * 5 + 3] = dev_boxes[dev_box_idx * 5 + 3]
+            block_boxes[tx * 5 + 4] = dev_boxes[dev_box_idx * 5 + 4]
+        cuda.syncthreads()
+        if tx < row_size:
+            for i in range(col_size):
+                offset = (
+                    row_start * threadsPerBlock * K + col_start * threadsPerBlock +
+                    tx * K + i)
+                dev_iou[offset] = devRotateIoUEval(block_qboxes[i * 5:i * 5 + 5],
+                                                   block_boxes[tx * 5:tx * 5 + 5],
+                                                   criterion)
+    
+    _rotate_iou_kernel_eval = rotate_iou_kernel_eval
+    return _rotate_iou_kernel_eval
 
 
 @numba.jit(nopython=True)
@@ -436,14 +447,15 @@ def rotate_iou_gpu_eval(boxes, query_boxes, criterion=-1, device_id=0):
         cuda.select_device(device_id)
         blockspergrid = (div_up(N, threadsPerBlock), div_up(K, threadsPerBlock))
 
+        kernel = _get_rotate_iou_kernel()
         stream = cuda.stream()
         with stream.auto_synchronize():
             boxes_dev = cuda.to_device(boxes.reshape([-1]), stream)
             query_boxes_dev = cuda.to_device(query_boxes.reshape([-1]), stream)
             iou_dev = cuda.to_device(iou.reshape([-1]), stream)
-            rotate_iou_kernel_eval[blockspergrid, threadsPerBlock,
-                                   stream](N, K, boxes_dev, query_boxes_dev,
-                                           iou_dev, criterion)
+            kernel[blockspergrid, threadsPerBlock,
+                   stream](N, K, boxes_dev, query_boxes_dev,
+                           iou_dev, criterion)
             iou_dev.copy_to_host(iou.reshape([-1]), stream=stream)
         return iou.astype(boxes.dtype)
     except Exception:
