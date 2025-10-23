@@ -150,7 +150,11 @@ val_evaluator = dict(
     backend_args=backend_args)
 test_evaluator = val_evaluator
 # Part-A2 uses a different learning rate from what SECOND uses.
-optim_wrapper = dict(optimizer=dict(lr=0.001))
+lr = 0.0004  # 降低学习率从0.001到0.0004 (40%的原值)
+optim_wrapper = dict(
+    type='OptimWrapper',
+    optimizer=dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01),
+    clip_grad=dict(max_norm=35, norm_type=2))  # 添加梯度裁剪
 find_unused_parameters = True
 
 # Default setting for scaling LR automatically

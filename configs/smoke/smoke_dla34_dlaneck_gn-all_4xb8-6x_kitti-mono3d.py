@@ -57,7 +57,7 @@ param_scheduler = [
 # optimizer
 optim_wrapper = dict(
     type='OptimWrapper',
-    optimizer=dict(type='Adam', lr=2.5e-4),
-    clip_grad=None)
+    optimizer=dict(type='Adam', lr=1.0e-4),  # 降低学习率从2.5e-4到1.0e-4
+    clip_grad=dict(max_norm=35, norm_type=2))  # 添加梯度裁剪防止梯度爆炸
 
 find_unused_parameters = True

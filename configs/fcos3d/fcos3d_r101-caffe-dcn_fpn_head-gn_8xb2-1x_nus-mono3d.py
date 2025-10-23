@@ -48,7 +48,7 @@ val_dataloader = dict(dataset=dict(pipeline=test_pipeline))
 
 # optimizer
 optim_wrapper = dict(
-    optimizer=dict(lr=0.002),
+    optimizer=dict(lr=0.0008),  # 降低学习率从0.002到0.0008 (40%的原值)
     paramwise_cfg=dict(bias_lr_mult=2., bias_decay_mult=0.),
     clip_grad=dict(max_norm=35, norm_type=2))
 

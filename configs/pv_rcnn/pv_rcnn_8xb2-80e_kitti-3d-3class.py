@@ -324,8 +324,11 @@ train_dataloader = dict(
     dataset=dict(dataset=dict(pipeline=train_pipeline, metainfo=metainfo)))
 test_dataloader = dict(dataset=dict(pipeline=test_pipeline, metainfo=metainfo))
 eval_dataloader = dict(dataset=dict(pipeline=test_pipeline, metainfo=metainfo))
-lr = 0.001
-optim_wrapper = dict(optimizer=dict(lr=lr))
+lr = 0.0004  # 降低学习率从0.001到0.0004 (40%的原值)
+optim_wrapper = dict(
+    type='OptimWrapper',
+    optimizer=dict(type='AdamW', lr=lr, betas=(0.95, 0.99), weight_decay=0.01),
+    clip_grad=dict(max_norm=35, norm_type=2))  # 添加梯度裁剪
 param_scheduler = [
     # learning rate scheduler
     # During the first 16 epochs, learning rate increases from 0 to lr * 10

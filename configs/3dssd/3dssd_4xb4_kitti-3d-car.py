@@ -95,7 +95,7 @@ model = dict(
             type='AnchorFreeBBoxCoder', num_dir_bins=12, with_rot=True)))
 
 # optimizer
-lr = 0.002  # max learning rate
+lr = 0.0008  # 降低学习率从0.002到0.0008 (40%的原值)
 optim_wrapper = dict(
     type='OptimWrapper',
     optimizer=dict(type='AdamW', lr=lr, weight_decay=0.),

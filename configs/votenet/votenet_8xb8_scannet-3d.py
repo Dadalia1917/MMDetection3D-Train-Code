@@ -32,6 +32,14 @@ model = dict(
                         [0.47535285, 0.49249494, 0.5802117]])))
 
 default_hooks = dict(logger=dict(type='LoggerHook', interval=30))
+
+# 降低学习率并添加梯度裁剪
+lr = 0.0032  # 降低学习率从0.008到0.0032 (40%的原值)
+optim_wrapper = dict(
+    type='OptimWrapper',
+    optimizer=dict(type='Adam', lr=lr),
+    clip_grad=dict(max_norm=35, norm_type=2))  # 添加梯度裁剪
+
 # Default setting for scaling LR automatically
 #   - `enable` means enable scaling LR automatically
 #       or not by default.
